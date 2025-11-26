@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import NextImage from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -14,11 +15,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlayCircle, ShieldCheck } from "lucide-react";
+import { Loader2, PlayCircle, ShieldCheck, Upload, X } from "lucide-react";
 import type { UserProfile } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { generateSpeechSample } from "@/ai/flows/generate-speech-sample";
+import { getStorageInstance, uploadFile } from "@/firebase/storage";
+import { updateProfile } from "firebase/auth";
 
 const profileSchema = z.object({
   firstName: z.string().min(1, { message: "First name is required" }),
@@ -28,13 +31,13 @@ const profileSchema = z.object({
 });
 
 const availableVoices = [
-    { id: 'Algenib', name: 'Algenib (Default)' },
-    { id: 'Achernar', name: 'Achernar' },
-    { id: 'Schedar', name: 'Schedar' },
-    { id: 'Umbriel', name: 'Umbriel' },
-    { id: 'Puck', name: 'Puck' },
-    { id: 'Gacrux', name: 'Gacrux' },
-    { id: 'Zephyr', name: 'Zephyr' },
+  { id: 'Algenib', name: 'Algenib (Default)' },
+  { id: 'Achernar', name: 'Achernar' },
+  { id: 'Schedar', name: 'Schedar' },
+  { id: 'Umbriel', name: 'Umbriel' },
+  { id: 'Puck', name: 'Puck' },
+  { id: 'Gacrux', name: 'Gacrux' },
+  { id: 'Zephyr', name: 'Zephyr' },
 ];
 
 export default function SettingsForm() {
@@ -42,13 +45,17 @@ export default function SettingsForm() {
   const firestore = getFirestore();
   const { toast } = useToast();
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const userProfileRef = useMemoFirebase(() => {
     if (!user) return null;
     return doc(firestore, "userProfiles", user.uid);
   }, [firestore, user]);
-  
+
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
   const form = useForm<z.infer<typeof profileSchema>>({
@@ -74,26 +81,31 @@ export default function SettingsForm() {
 
     // Initialize Audio element on client
     audioRef.current = new Audio();
+
+    // Set initial profile image preview
+    if (user?.photoURL) {
+      setProfileImagePreview(user.photoURL);
+    }
   }, [userProfile, form]);
-  
+
   const { isSubmitting } = form.formState;
 
   const handleUpdateProfile = async (values: z.infer<typeof profileSchema>) => {
     if (!user) return;
 
     try {
-        const userDocRef = doc(firestore, 'userProfiles', user.uid);
-        
-        const updatedProfile = {
-            firstName: values.firstName,
-            lastName: values.lastName,
-        };
+      const userDocRef = doc(firestore, 'userProfiles', user.uid);
 
-        setDocumentNonBlocking(userDocRef, updatedProfile, { merge: true });
+      const updatedProfile = {
+        firstName: values.firstName,
+        lastName: values.lastName,
+      };
 
-        if (values.aiVoice) {
-            localStorage.setItem('aiVoice', values.aiVoice);
-        }
+      setDocumentNonBlocking(userDocRef, updatedProfile, { merge: true });
+
+      if (values.aiVoice) {
+        localStorage.setItem('aiVoice', values.aiVoice);
+      }
 
       toast({
         title: "Settings Saved",
@@ -110,27 +122,100 @@ export default function SettingsForm() {
 
   const handlePlaySample = async (voiceId: string) => {
     if (playingVoice) return; // Prevent multiple requests
-    
+
     setPlayingVoice(voiceId);
     try {
-        const sampleText = "Hi there, I am Bloom AI, your personal AI Therapy assistant";
-        const { audio } = await generateSpeechSample({ text: sampleText, voiceName: voiceId });
+      const sampleText = "Hi there, I am Bloom AI, your personal AI Therapy assistant";
+      const { audio } = await generateSpeechSample({ text: sampleText, voiceName: voiceId });
 
-        if (audioRef.current) {
-            audioRef.current.src = audio;
-            audioRef.current.play();
-            audioRef.current.onended = () => setPlayingVoice(null);
-            audioRef.current.onerror = () => {
-                toast({ title: "Error playing audio", variant: "destructive" });
-                setPlayingVoice(null);
-            };
-        }
+      if (audioRef.current) {
+        audioRef.current.src = audio;
+        audioRef.current.play();
+        audioRef.current.onended = () => setPlayingVoice(null);
+        audioRef.current.onerror = () => {
+          toast({ title: "Error playing audio", variant: "destructive" });
+          setPlayingVoice(null);
+        };
+      }
     } catch (err) {
-        console.error("Error generating speech sample", err);
-        toast({ title: "Could not generate voice sample", variant: "destructive" });
-        setPlayingVoice(null);
+      console.error("Error generating speech sample", err);
+      toast({ title: "Could not generate voice sample", variant: "destructive" });
+      setPlayingVoice(null);
     }
   }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({
+          variant: "destructive",
+          title: "File too large",
+          description: "Please select an image smaller than 5MB.",
+        });
+        return;
+      }
+
+      setProfileImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setProfileImage(null);
+    setProfileImagePreview(user?.photoURL || null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleUploadImage = async () => {
+    if (!profileImage || !user) return;
+
+    setUploadingImage(true);
+    try {
+      const storage = getStorageInstance();
+      const { downloadURL } = await uploadFile(
+        storage,
+        profileImage,
+        `profile-pictures/${user.uid}/${Date.now()}_${profileImage.name}`
+      );
+
+      // Update Firebase Auth profile
+      await updateProfile(user, {
+        photoURL: downloadURL,
+      });
+
+      // Update Firestore profile
+      const userDocRef = doc(firestore, 'userProfiles', user.uid);
+      setDocumentNonBlocking(userDocRef, {
+        photoURL: downloadURL,
+      }, { merge: true });
+
+      setProfileImage(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      toast({
+        title: "Profile Picture Updated",
+        description: "Your profile picture has been updated successfully.",
+      });
+    } catch (error: any) {
+      console.error("Error uploading image:", error);
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: error.message || "Failed to upload image. Please try again.",
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
 
   if (isProfileLoading) {
@@ -201,13 +286,13 @@ export default function SettingsForm() {
                   </FormItem>
                 )}
               />
-               <FormItem>
+              <FormItem>
                 <FormLabel>Account Status</FormLabel>
                 <FormControl>
-                    <Input value={userProfile?.isModerator ? "Moderator" : "Student"} disabled />
+                  <Input value={userProfile?.isModerator ? "Moderator" : "Student"} disabled />
                 </FormControl>
                 <FormDescription>
-                    Your account status is managed by an administrator.
+                  Your account status is managed by an administrator.
                 </FormDescription>
               </FormItem>
             </div>
@@ -215,65 +300,92 @@ export default function SettingsForm() {
             <Separator />
 
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Crisis & Safety Settings</h3>
-                <Link href="/settings/safety-plan" passHref>
-                    <Button variant="outline">
-                        <ShieldCheck className="mr-2 h-4 w-4" />
-                        Manage My Safety Plan
+              <h3 className="text-lg font-medium">Profile Picture</h3>
+              <div className="flex items-center gap-6">
+                <div className="relative">
+                  {profileImagePreview ? (
+                    <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-primary">
+                      <NextImage
+                        src={profileImagePreview}
+                        alt="Profile"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center border-4 border-gray-300">
+                      <Upload className="w-12 h-12 text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingImage}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Choose Image
                     </Button>
-                </Link>
-                <FormDescription>
-                    Configure your trusted contacts and coping strategies for crisis situations.
-                </FormDescription>
+                    {profileImage && (
+                      <>
+                        <Button
+                          type="button"
+                          onClick={handleUploadImage}
+                          disabled={uploadingImage}
+                        >
+                          {uploadingImage ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="mr-2 h-4 w-4" />
+                          )}
+                          Upload
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={handleRemoveImage}
+                          disabled={uploadingImage}
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Cancel
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Upload a profile picture (max 5MB). Recommended: square image, at least 400x400px.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <Separator />
 
             <div className="space-y-4">
-                <h3 className="text-lg font-medium">AI Voice Settings</h3>
-                 <FormField
-                  control={form.control}
-                  name="aiVoice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Therapist Voice</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a voice for the AI therapist" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {availableVoices.map(voice => (
-                            <div key={voice.id} className="flex items-center justify-between pr-2">
-                                <SelectItem value={voice.id} className="w-full">
-                                    {voice.name}
-                                </SelectItem>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handlePlaySample(voice.id);
-                                    }}
-                                    disabled={!!playingVoice}
-                                >
-                                    {playingVoice === voice.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-5 h-5" />}
-                                </Button>
-                            </div>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        Choose the voice and accent for your AI therapy sessions.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <h3 className="text-lg font-medium">Crisis & Safety Settings</h3>
+              <Link href="/settings/safety-plan" passHref>
+                <Button variant="outline">
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Manage My Safety Plan
+                </Button>
+              </Link>
+              <FormDescription>
+                Configure your trusted contacts and coping strategies for crisis situations.
+              </FormDescription>
             </div>
+
+            <Separator />
+
 
             <div className="flex justify-end">
               <Button type="submit" disabled={isSubmitting}>

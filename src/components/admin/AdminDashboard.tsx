@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 // Designated super admin UID for failsafe access
-const SUPER_ADMIN_UID = 'BzsBHchaPEYuHwuhqlMiwRaMbBJ2'; 
+const SUPER_ADMIN_UID = 'BzsBHchaPEYuHwuhqlMiwRaMbBJ2';
 const SUPER_ADMIN_EMAIL = 'victorehebhoria@gmail.com';
 
 export default function AdminDashboard() {
@@ -53,16 +53,16 @@ export default function AdminDashboard() {
   const toggleModerator = (user: UserProfile) => {
     // Super admin cannot have their status changed by this UI.
     if (user.id === SUPER_ADMIN_UID) {
-        toast({
-            title: "Action Forbidden",
-            description: "Cannot change the status of the super admin.",
-            variant: "destructive",
-        });
-        return;
+      toast({
+        title: "Action Forbidden",
+        description: "Cannot change the status of the super admin.",
+        variant: "destructive",
+      });
+      return;
     }
     const userDocRef = doc(firestore, "userProfiles", user.id);
     const newStatus = !user.isModerator;
-    updateDocumentNonBlocking(userDocRef, { isModerator: newStatus }, { merge: true });
+    updateDocumentNonBlocking(userDocRef, { isModerator: newStatus });
     toast({
       title: "User Updated",
       description: `${user.firstName} is ${newStatus ? 'now' : 'no longer'} a moderator.`,
@@ -71,12 +71,12 @@ export default function AdminDashboard() {
 
   const deleteUser = (user: UserProfile) => {
     if (user.id === SUPER_ADMIN_UID) {
-        toast({
-            title: "Action Forbidden",
-            description: "The super admin cannot be deleted.",
-            variant: "destructive",
-        });
-        return;
+      toast({
+        title: "Action Forbidden",
+        description: "The super admin cannot be deleted.",
+        variant: "destructive",
+      });
+      return;
     }
     const userDocRef = doc(firestore, "userProfiles", user.id);
     deleteDocumentNonBlocking(userDocRef);
@@ -90,15 +90,15 @@ export default function AdminDashboard() {
   // Regular moderators or non-admins see a restricted view.
   if (!isSuperAdmin) {
     return (
-       <Card>
+      <Card>
         <CardContent className="pt-6 text-center">
-            <ShieldOff className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-bold">Access Denied</h2>
-            <p className="text-muted-foreground mt-2">
-              You do not have permission to view the full user list.
-            </p>
+          <ShieldOff className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-bold">Access Denied</h2>
+          <p className="text-muted-foreground mt-2">
+            You do not have permission to view the full user list.
+          </p>
         </CardContent>
-       </Card>
+      </Card>
     )
   }
 
@@ -128,57 +128,57 @@ export default function AdminDashboard() {
                 <TableCell className="font-medium">{user.firstName} {user.lastName}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
-                   {user.id === SUPER_ADMIN_UID ? (
-                     <Badge variant="destructive">Super Admin</Badge>
-                   ) : user.isModerator ? (
+                  {user.id === SUPER_ADMIN_UID ? (
+                    <Badge variant="destructive">Super Admin</Badge>
+                  ) : user.isModerator ? (
                     <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Moderator
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Moderator
                     </Badge>
                   ) : (
                     <Badge variant="outline">Student</Badge>
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleModerator(user)}
-                        className="mr-2"
-                        disabled={user.id === SUPER_ADMIN_UID}
-                    >
-                        <Shield className="w-4 h-4 mr-2" />
-                        {user.isModerator ? "Remove Mod" : "Make Mod"}
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                         <Button variant="destructive" size="sm" disabled={user.id === SUPER_ADMIN_UID}>
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the user's
-                            profile and all associated data.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteUser(user)}>
-                            Delete User
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleModerator(user)}
+                    className="mr-2"
+                    disabled={user.id === SUPER_ADMIN_UID}
+                  >
+                    <Shield className="w-4 h-4 mr-2" />
+                    {user.isModerator ? "Remove Mod" : "Make Mod"}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm" disabled={user.id === SUPER_ADMIN_UID}>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the user's
+                          profile and all associated data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteUser(user)}>
+                          Delete User
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </CardContent>
-    </Card>
+    </Card >
   );
 }

@@ -4,6 +4,7 @@ import ScheduledSessions from "@/components/dashboard/ScheduledSessions";
 import MedicationReminders from "@/components/dashboard/MedicationReminders";
 import GratitudeJournal from "@/components/dashboard/GratitudeJournal";
 import { Separator } from "@/components/ui/separator";
+import ActivitySurvey from "@/components/activities/ActivitySurvey";
 
 export default function DashboardPage() {
   return (
@@ -13,7 +14,13 @@ export default function DashboardPage() {
         <DashboardMetrics />
         <Separator />
         <GratitudeJournal />
-        <ScheduledSessions />
+       <div>
+           <div className="text-center mb-8">
+            <h2 className="text-3xl font-headline font-bold">Daily Check-in</h2>
+            <p className="text-muted-foreground mt-1">Answer a few questions to see how your activities impact your mood.</p>
+          </div>
+          <ActivitySurvey />
+        </div>
         <MedicationReminders />
       </div>
     </div>

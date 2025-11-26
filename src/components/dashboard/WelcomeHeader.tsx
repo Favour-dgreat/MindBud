@@ -52,7 +52,7 @@ export default function WelcomeHeader() {
                 Good Morning, {getFirstName()}
                 </h1>
                 <p className="text-muted-foreground mt-1">
-                Ready to start your day with mindfulness?
+                Welcome to MindBud - Your AI powered mental wellness companion  
                 </p>
             </div>
             <div className="flex items-center gap-4 md:hidden">
@@ -76,10 +76,10 @@ export default function WelcomeHeader() {
               <div className="flex-1">
                 <h3 className="font-headline font-semibold text-lg mb-2">Proactive Insight</h3>
                 <p className="text-sm text-foreground/80 mb-4">
-                  Hi {getFirstName()}, I see you have a 'Midterm Exam' in your calendar for Wednesday. Your past logs show stress tends to rise 2 days before an exam. How about we schedule a quick check-in session tonight?
+                  Remember that asking for help is not a sign of weakness; it’s a sign of strength.
                 </p>
                 <Link href="/therapy" passHref>
-                  <Button size="sm">Schedule Session</Button>
+                  <Button size="sm" className="elevation-2 font-semibold">Start a Mental Wellness Session Today!</Button>
                 </Link>
               </div>
             </div>
